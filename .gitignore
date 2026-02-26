@@ -1,0 +1,24 @@
+.venv/
+venv/
+env/
+
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignore local game assets
+assets/*
+!assets/.gitkeep
