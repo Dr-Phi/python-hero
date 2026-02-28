@@ -72,9 +72,9 @@ def load_chart_from_path(chart_path: Path) -> List[Tuple[int, float]]:
 
 def delete_chart(chart_path: Path) -> bool:
     try:
-        chart_path.unlink()
-        return True
-    except FileNotFoundError:
+        if chart_path.exists():
+            chart_path.unlink()
+            return True
         return False
-    except OSError:
+    except Exception:
         return False
