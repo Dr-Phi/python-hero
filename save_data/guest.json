@@ -1,0 +1,18 @@
+{
+    "name": "guest",
+    "keys": [
+        121,
+        117,
+        105,
+        111,
+        112
+    ],
+    "stats": {
+        "song_data": {
+            "jesucristo-demo_chart_02.txt": {
+                "best_hits": 26,
+                "best_percent": 78.79
+            }
+        }
+    }
+}

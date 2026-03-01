@@ -1,14 +1,29 @@
 # 🎸 Python Hero
 
-A modular rhythm game inspired by Guitar Hero, built with Python and Pygame.
+A musical game inspired by Clone Hero, built with Python and Pygame.
 
 ## ✨ Features
 
 - 🎵 Select any `.mp3` from your `assets/` folder
-- 🎼 Record your own note chart in real time
+- 🎼 Record your own song chart in real time
 - 💾 Save multiple chart versions per song
 - 📂 Load existing charts
-- 🧱 Modular project structure (maintainable & scalable)
+
+## project structure
+
+python-hero/
+├── assets/ (Put your .mp3 and .txt charts here)
+├── save_data/ (Your .json profiles will appear here)
+└── src/
+└── python_hero/
+├── `**init**.py`
+├── main.py
+├── app.py
+├── config.py
+├── data_manager.py
+├── gameplay.py
+├── render.py
+└── screens.py
 
 ---
 

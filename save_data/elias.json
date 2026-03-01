@@ -1,0 +1,22 @@
+{
+    "name": "Elias",
+    "keys": [
+        97,
+        115,
+        100,
+        102,
+        103
+    ],
+    "stats": {
+        "song_data": {
+            "stand-by-demo_chart_01.txt": {
+                "best_hits": 95,
+                "best_percent": 95.96
+            },
+            "jesucristo-demo_chart_03.txt": {
+                "best_hits": 26,
+                "best_percent": 81.25
+            }
+        }
+    }
+}

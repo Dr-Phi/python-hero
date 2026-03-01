@@ -4,16 +4,19 @@ import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, Final
+from typing import List, Sequence, Dict, Final, Tuple
 
 import pygame
 from . import config
+from .data_manager import Profile
+from .songs import display_name
 
 # --- Visual Constants ---
 BG_DARK: Final = (10, 10, 14)
 TEXT_PRIMARY: Final = (235, 235, 235)
 ACCENT_GREEN: Final = (0, 255, 70)
 ACCENT_RED: Final = (220, 80, 80)
+ACCENT_GOLD: Final = (255, 215, 0)
 DIM_TEXT: Final = (150, 150, 160)
 
 
@@ -25,249 +28,342 @@ class Fonts:
     option_font: pygame.font.Font
     ui_font: pygame.font.Font
 
-
-def _draw_centered_lines(
-    screen: pygame.Surface,
-    lines: Sequence[str],
-    font: pygame.font.Font,
-    color: tuple[int, int, int],
-    start_y: int,
-) -> None:
-    y = start_y
-    for line in lines:
-        surf = font.render(line, True, color)
-        x = (config.WIDTH - surf.get_width()) // 2
-        screen.blit(surf, (x, y))
-        y += font.get_height() + 6
+    @staticmethod
+    def default() -> Fonts:
+        """Standard font loader used by the App."""
+        return Fonts(
+            ascii_font=pygame.font.SysFont("consolas", 28),
+            hint_font=pygame.font.SysFont("consolas", 22),
+            title_font=pygame.font.SysFont("consolas", 34),
+            option_font=pygame.font.SysFont("consolas", 26),
+            ui_font=pygame.font.SysFont(None, 34),
+        )
 
 
-# ---------- Splash ----------
+# --- Internal Helpers ---
+
+
+def _draw_centered(
+    screen: pygame.Surface, text: str, font: pygame.font.Font, color: tuple, y: int
+):
+    surf = font.render(text, True, color)
+    screen.blit(surf, ((config.WIDTH - surf.get_width()) // 2, y))
+
+
+def _draw_overlay(screen: pygame.Surface, alpha: int = 200):
+    overlay = pygame.Surface((config.WIDTH, config.HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, alpha))
+    screen.blit(overlay, (0, 0))
+
+
+def _get_grade(percent: float) -> Tuple[str, tuple]:
+    """Returns (Letter, Color) based on accuracy percentage."""
+    if percent >= 100:
+        return ("S", ACCENT_GOLD)
+    if percent >= 90:
+        return ("A", ACCENT_GREEN)
+    if percent >= 80:
+        return ("B", (100, 200, 255))
+    if percent >= 70:
+        return ("C", (255, 165, 0))
+    return ("F", ACCENT_RED)
+
+
+# --- Primary Screens ---
 
 
 def draw_splash(screen: pygame.Surface, fonts: Fonts) -> None:
     screen.fill(BG_DARK)
+    y = 220
+    for line in config.SPLASH_ART:
+        surf = fonts.ascii_font.render(line, True, TEXT_PRIMARY)
+        screen.blit(surf, ((config.WIDTH - surf.get_width()) // 2, y))
+        y += fonts.ascii_font.get_height() + 2
 
-    _draw_centered_lines(
-        screen, config.SPLASH_ART, fonts.ascii_font, TEXT_PRIMARY, start_y=220
-    )
-
-    # Calculate hint position based on ASCII art height
-    hint_y = 220 + (len(config.SPLASH_ART) * 34) + 60
-
-    # Smooth pulsing alpha for the prompt
     pulse = int(120 + 135 * (0.5 + 0.5 * math.sin(time.time() * 3)))
-    prompt_surf = fonts.title_font.render(
-        "Press ENTER to Start", True, (pulse, pulse, pulse)
+    _draw_centered(
+        screen, "Press ENTER to Start", fonts.title_font, (pulse, pulse, pulse), y + 60
     )
 
-    screen.blit(prompt_surf, ((config.WIDTH - prompt_surf.get_width()) // 2, hint_y))
+
+def draw_main_menu(screen: pygame.Surface, fonts: Fonts, selected_index: int) -> None:
+    screen.fill(BG_DARK)
+    _draw_centered(screen, "PYTHON HERO", fonts.title_font, ACCENT_GREEN, 80)
+
+    options = ["Play Game", "Settings", "Profiles", "High Scores", "Quit"]
+    for i, opt in enumerate(options):
+        is_sel = i == selected_index
+        color = ACCENT_GREEN if is_sel else DIM_TEXT
+        prefix = ">> " if is_sel else "   "
+        _draw_centered(screen, prefix + opt, fonts.option_font, color, 250 + i * 60)
 
 
-# ---------- Song Select ----------
+def draw_settings(
+    screen: pygame.Surface,
+    fonts: Fonts,
+    current_keys: List[int],
+    rebinding_idx: int,
+    menu_index: int,
+) -> None:
+    screen.fill(BG_DARK)
+    _draw_centered(screen, "SETTINGS: KEY BINDINGS", fonts.title_font, TEXT_PRIMARY, 60)
+
+    y = 200
+    lanes = ["Lane 1", "Lane 2", "Lane 3", "Lane 4", "Lane 5"]
+
+    for i, lane_name in enumerate(lanes):
+        # 1. Determine Color/Text based on state
+        is_active = i == rebinding_idx
+        is_hovered = i == menu_index and rebinding_idx == -1
+
+        if is_active:
+            color, text = (255, 255, 0), f"{lane_name}: [ PRESS ANY KEY ]"
+        elif is_hovered:
+            color, text = (
+                ACCENT_GREEN,
+                f"{lane_name}: [{pygame.key.name(current_keys[i]).upper()}] <<",
+            )
+        else:
+            color, text = (
+                DIM_TEXT,
+                f"{lane_name}: [{pygame.key.name(current_keys[i]).upper()}]",
+            )
+
+        # 2. Render
+        surf = fonts.option_font.render(text, True, color)
+        screen.blit(surf, ((config.WIDTH - surf.get_width()) // 2, y))
+        y += 60
+
+    _draw_centered(
+        screen,
+        "UP/DOWN: Select | ENTER: Rebind | R: Reset | ESC: Save",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 80,
+    )
+
+
+def draw_profile_select(
+    screen: pygame.Surface, fonts: Fonts, names: List[str], selected: int, active: str
+) -> None:
+    screen.fill(BG_DARK)
+    _draw_centered(screen, "SELECT PROFILE", fonts.title_font, TEXT_PRIMARY, 60)
+    _draw_centered(
+        screen, f"Logged in as: {active}", fonts.hint_font, ACCENT_GREEN, 120
+    )
+
+    opts = names + ["[ Create New Profile ]"]
+    for i, name in enumerate(opts):
+        color = TEXT_PRIMARY if i == selected else DIM_TEXT
+        _draw_centered(screen, name, fonts.option_font, color, 200 + i * 50)
+
+    _draw_centered(
+        screen,
+        "ESC: Back | ENTER: Select | D: Delete Profile",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 60,
+    )
 
 
 def draw_song_select(
-    screen: pygame.Surface,
-    fonts: Fonts,
-    songs: Sequence[Path],
-    selected_index: int,
+    screen: pygame.Surface, fonts: Fonts, songs: Sequence[Path], selected: int
 ) -> None:
     screen.fill(BG_DARK)
+    _draw_centered(screen, "SELECT A SONG", fonts.title_font, TEXT_PRIMARY, 60)
 
-    title = fonts.title_font.render("SELECT A SONG", True, TEXT_PRIMARY)
-    screen.blit(title, (60, 60))
-
-    if not songs:
-        msg = [
-            "No .mp3 files found in assets/",
-            f"Folder: {config.ASSETS_DIR}",
-            "",
-            "Please add songs and restart.",
-        ]
-        _draw_centered_lines(screen, msg, fonts.option_font, ACCENT_RED, 300)
-        return
-
-    y = 160
     for i, song in enumerate(songs):
-        is_selected = i == selected_index
-        prefix = ">> " if is_selected else "   "
-        color = TEXT_PRIMARY if is_selected else DIM_TEXT
+        color = TEXT_PRIMARY if i == selected else DIM_TEXT
+        prefix = ">> " if i == selected else "   "
+        clean_name = display_name(song)
+        surf = fonts.option_font.render(f"{prefix}{clean_name}", True, color)
+        screen.blit(surf, (100, 180 + i * 45))
 
-        surf = fonts.option_font.render(f"{prefix}{song.stem}", True, color)
-        screen.blit(surf, (80, y))
-        y += surf.get_height() + 15
-
-    # Standard Footer Hint
-    hint = "UP/DOWN: Navigate  |  ENTER: Select  |  ESC: Quit"
-    hint_surf = fonts.hint_font.render(hint, True, config.HINT_TEXT_COLOR)
-    screen.blit(hint_surf, (60, config.HEIGHT - 60))
-
-
-# ---------- Chart Choice ----------
+    _draw_centered(
+        screen,
+        "UP/DOWN: Navigate | ENTER: Select | ESC: Main Menu",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 60,
+    )
 
 
-def draw_chart_choice(
-    screen: pygame.Surface,
-    fonts: Fonts,
-    song_path: Path | None,
-    charts: Sequence[Path],
-    selected_index: int,
-) -> None:
+def draw_chart_choice(screen, fonts, song, charts, selected, profile) -> None:
     screen.fill(BG_DARK)
-    if not song_path:
+    if not song:
         return
+    _draw_centered(screen, f"CHART: {song.stem}", fonts.title_font, TEXT_PRIMARY, 60)
 
-    # Header
-    screen.blit(
-        fonts.title_font.render("CHART SELECTION", True, TEXT_PRIMARY), (60, 60)
-    )
-    screen.blit(
-        fonts.option_font.render(f"Song: {song_path.stem}", True, DIM_TEXT), (80, 110)
-    )
-
-    # Recording Option
-    rec_color = ACCENT_GREEN if math.sin(time.time() * 5) > 0 else TEXT_PRIMARY
-    screen.blit(
-        fonts.option_font.render("Press R to record a NEW chart", True, rec_color),
-        (80, 180),
-    )
-
-    y_list = 260
+    y = 180
     if not charts:
-        screen.blit(
-            fonts.option_font.render("[ NO CHARTS FOUND ]", True, ACCENT_RED),
-            (80, y_list),
+        _draw_centered(screen, "[ NO CHARTS FOUND ]", fonts.option_font, ACCENT_RED, y)
+    else:
+        for i, p in enumerate(charts):
+            is_sel = i == selected
+            color = ACCENT_GREEN if is_sel else DIM_TEXT
+            surf = fonts.option_font.render(
+                f"{'>> ' if is_sel else '   '}{p.name}", True, color
+            )
+            screen.blit(surf, (100, y))
+
+            if is_sel and p.name in profile.stats.song_data:
+                pb = profile.stats.song_data[p.name]
+                pb_txt = fonts.hint_font.render(
+                    f"(PB: {pb.best_percent}%)", True, ACCENT_GREEN
+                )
+                screen.blit(pb_txt, (110 + surf.get_width(), y + 5))
+            y += 45
+
+    _draw_centered(
+        screen,
+        "ENTER: Play | R: Record | D: Delete | X: Reset",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 100,
+    )
+
+
+from .songs import display_name  # Ensure this import is at the top of screens.py
+
+
+def draw_high_scores(screen, fonts, records) -> None:
+    screen.fill(BG_DARK)
+    _draw_centered(screen, "WORLD RECORDS", fonts.title_font, ACCENT_GOLD, 50)
+
+    y = 150
+    # Header for the table
+    header_str = f"{'PLAYER':<15} {'SCORE (ACC%)':<25} {'SONG':<20}"
+    header = fonts.hint_font.render(header_str, True, DIM_TEXT)
+    screen.blit(header, (100, y))
+
+    y += 45
+    if not records:
+        _draw_centered(
+            screen, "[ NO RECORDS YET ]", fonts.option_font, DIM_TEXT, y + 40
         )
     else:
-        screen.blit(
-            fonts.hint_font.render("Existing Charts:", True, DIM_TEXT), (80, y_list)
-        )
-        y = y_list + 40
-        for i, p in enumerate(charts):
-            is_selected = i == selected_index
-            prefix = ">> " if is_selected else "   "
-            color = ACCENT_GREEN if is_selected else DIM_TEXT
-
-            surf = fonts.option_font.render(f"{prefix}{p.name}", True, color)
-            screen.blit(surf, (80, y))
-            y += surf.get_height() + 12
-
-        # Action labels
-        screen.blit(
-            fonts.hint_font.render(
-                "ENTER: Play Chart  |  D: Delete Chart", True, TEXT_PRIMARY
-            ),
-            (80, y + 20),
+        # 1. Sort records by hits (score) so the best players are at the top
+        sorted_items = sorted(
+            records.items(), key=lambda item: item[1].get("hits", 0), reverse=True
         )
 
-    # Standard Footer Hint
-    hint = "UP/DOWN: Navigate  |  ESC: Back to Songs"
-    hint_surf = fonts.hint_font.render(hint, True, config.HINT_TEXT_COLOR)
-    screen.blit(hint_surf, (60, config.HEIGHT - 60))
+        for chart_name, data in sorted_items:
+            # 2. Use the new display_name logic (handles underscores and casing)
+            # We strip the chart suffix first, then pass to the path utility
+            base_name = (
+                chart_name.replace(".txt", "").replace(".json", "").split("_chart_")[0]
+            )
+            song = display_name(Path(base_name))[:20]
 
+            # 3. Format the row data
+            player = data.get("player", "???")[:12]
+            hits = data.get("hits", 0)
+            acc = data.get("accuracy", 0)
 
-# ---------- Modals (Quit / Delete) ----------
+            row_text = f"{player:<15} {hits} ({acc}%)".ljust(41) + f"{song}"
 
+            # 4. Render the row
+            screen.blit(fonts.ascii_font.render(row_text, True, TEXT_PRIMARY), (100, y))
+            y += 40
 
-def draw_quit_confirm(screen: pygame.Surface, fonts: Fonts) -> None:
-    _draw_modal_box(
-        screen, fonts, "Quit Game?", "ENTER: Yes | ESC: No", is_danger=False
-    )
+            # Prevent drawing off the bottom of the screen
+            if y > config.HEIGHT - 100:
+                break
 
-
-def draw_confirm_delete(screen: pygame.Surface, fonts: Fonts, chart_name: str) -> None:
-    _draw_modal_box(
+    _draw_centered(
         screen,
-        fonts,
-        f"Delete {chart_name}?",
-        "ENTER: Confirm | ESC: Cancel",
-        is_danger=True,
+        "ESC: Back | C: Wipe All Records",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 60,
     )
 
 
-def _draw_modal_box(
-    screen: pygame.Surface,
-    fonts: Fonts,
-    title_text: str,
-    hint_text: str,
-    is_danger: bool = False,
-) -> None:
-    """Internal helper to draw consistent confirmation boxes."""
+# ---------- New Results Screen ----------
+def draw_pause_countdown(screen: pygame.Surface, fonts: Fonts, value: int) -> None:
+    """Draws a semi-transparent overlay with a centered countdown number."""
+    # 1. Create a semi-transparent dark overlay
     overlay = pygame.Surface((config.WIDTH, config.HEIGHT), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 200))
+    overlay.fill((0, 0, 0, 160))
     screen.blit(overlay, (0, 0))
 
-    bw, bh = 600, 220
-    bx, by = (config.WIDTH - bw) // 2, (config.HEIGHT - bh) // 2
+    # 2. Render the "GET READY" text and the countdown number
+    title = fonts.title_font.render("GET READY", True, ACCENT_GREEN)
+    num = fonts.title_font.render(str(value), True, TEXT_PRIMARY)
 
-    border_color = ACCENT_RED if is_danger else ACCENT_GREEN
-    bg_color = (40, 20, 20) if is_danger else (30, 30, 40)
+    # 3. Position them in the center of the screen
+    center_x = config.WIDTH // 2
+    center_y = config.HEIGHT // 2
 
-    pygame.draw.rect(screen, bg_color, (bx, by, bw, bh))
-    pygame.draw.rect(screen, border_color, (bx, by, bw, bh), 3)
-
-    t_surf = fonts.option_font.render(title_text, True, TEXT_PRIMARY)
-    h_surf = fonts.hint_font.render(hint_text, True, border_color)
-
-    screen.blit(t_surf, (bx + (bw - t_surf.get_width()) // 2, by + 60))
-    screen.blit(h_surf, (bx + (bw - h_surf.get_width()) // 2, by + 130))
+    screen.blit(title, (center_x - title.get_width() // 2, center_y - 80))
+    screen.blit(num, (center_x - num.get_width() // 2, center_y + 20))
 
 
-# ---------- Gameplay UI ----------
+def draw_results(screen: pygame.Surface, fonts: Fonts, hits: int, total: int) -> None:
+    screen.fill(BG_DARK)
+    percent = (hits / total * 100) if total > 0 else 0
+    grade_char, grade_color = _get_grade(percent)
+
+    _draw_centered(screen, "PERFORMANCE RESULTS", fonts.title_font, TEXT_PRIMARY, 80)
+
+    # Draw Grade
+    grade_font = pygame.font.SysFont("consolas", 120, bold=True)
+    grade_surf = grade_font.render(grade_char, True, grade_color)
+    screen.blit(grade_surf, ((config.WIDTH - grade_surf.get_width()) // 2, 180))
+
+    # Stats
+    _draw_centered(
+        screen, f"Notes Hit: {hits} / {total}", fonts.option_font, TEXT_PRIMARY, 340
+    )
+    _draw_centered(
+        screen, f"Accuracy: {percent:.2f}%", fonts.option_font, grade_color, 390
+    )
+
+    _draw_centered(
+        screen,
+        "Press ENTER to Continue",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 100,
+    )
+
+
+# ---------- Overlays & Modals ----------
 
 
 def draw_pause_menu(
     screen: pygame.Surface, fonts: Fonts, mode: str, selected_index: int
 ) -> None:
-    # Semi-transparent black pause screen
-    overlay = pygame.Surface((config.WIDTH, config.HEIGHT), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 220))
-    screen.blit(overlay, (0, 0))
-
-    title = fonts.title_font.render("PAUSED", True, ACCENT_GREEN)
-    screen.blit(title, ((config.WIDTH - title.get_width()) // 2, 150))
+    _draw_overlay(screen, 220)  # Using our helper from the previous optimization
+    _draw_centered(screen, "PAUSED", fonts.title_font, ACCENT_GREEN, 150)
 
     options = (
-        ["Resume", "Restart Song", "Exit to Menu"]
+        ["Resume", "Restart", "Exit"]
         if mode == "play"
-        else ["Resume Recording", "Save Chart", "Start Over", "Exit to Menu"]
+        else ["Resume", "Save Chart", "Exit"]
     )
 
-    y = 280
     for i, opt in enumerate(options):
         is_sel = i == selected_index
         color = ACCENT_GREEN if is_sel else DIM_TEXT
         prefix = "> " if is_sel else "  "
-        surf = fonts.option_font.render(prefix + opt, True, color)
-        screen.blit(surf, ((config.WIDTH - surf.get_width()) // 2, y))
-        y += 50
+        _draw_centered(screen, prefix + opt, fonts.option_font, color, 280 + i * 50)
 
-    hint = fonts.hint_font.render(
-        "UP/DOWN: Navigate | ENTER: Select | ESC: Resume", True, ACCENT_GREEN
+
+def draw_confirm_dialog(screen, fonts, title, subtext, is_danger=True):
+    _draw_overlay(screen)
+    rect = pygame.Rect(0, 0, 550, 220)
+    rect.center = (config.WIDTH // 2, config.HEIGHT // 2)
+    border = ACCENT_RED if is_danger else ACCENT_GREEN
+    pygame.draw.rect(screen, (25, 25, 35), rect)
+    pygame.draw.rect(screen, border, rect, 3)
+
+    _draw_centered(screen, title, fonts.title_font, border, rect.top + 40)
+    _draw_centered(screen, subtext, fonts.hint_font, TEXT_PRIMARY, rect.top + 100)
+    _draw_centered(
+        screen,
+        "ENTER: Confirm | ESC: Cancel",
+        fonts.hint_font,
+        DIM_TEXT,
+        rect.bottom - 50,
     )
-    screen.blit(hint, ((config.WIDTH - hint.get_width()) // 2, config.HEIGHT - 100))
-
-
-def draw_pause_countdown(screen: pygame.Surface, fonts: Fonts, value: int) -> None:
-    """Draws a semi-transparent overlay with a centered countdown."""
-    # 1. Create a semi-transparent overlay (Alpha 160/255)
-    overlay = pygame.Surface((config.WIDTH, config.HEIGHT), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 160))
-    screen.blit(overlay, (0, 0))
-
-    # 2. Render the text
-    title = fonts.title_font.render("GET READY", True, (0, 255, 70))
-    num = fonts.title_font.render(str(value), True, (255, 255, 255))
-
-    # 3. Calculate Vertical Center (using config.HEIGHT)
-    # This prevents the text from being "too high"
-    center_y = config.HEIGHT // 2
-
-    title_x = (config.WIDTH - title.get_width()) // 2
-    title_y = center_y - 80  # Positioned slightly above center
-
-    num_x = (config.WIDTH - num.get_width()) // 2
-    num_y = center_y + 20  # Positioned slightly below center
-
-    screen.blit(title, (title_x, title_y))
-    screen.blit(num, (num_x, num_y))
