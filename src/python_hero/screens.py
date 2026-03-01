@@ -367,3 +367,33 @@ def draw_confirm_dialog(screen, fonts, title, subtext, is_danger=True):
         DIM_TEXT,
         rect.bottom - 50,
     )
+
+
+def draw_create_profile(
+    screen: pygame.Surface, fonts: Fonts, current_name: str
+) -> None:
+    """Draws the text input screen for creating a new profile."""
+    screen.fill(BG_DARK)
+
+    _draw_centered(screen, "CREATE NEW PROFILE", fonts.title_font, ACCENT_GREEN, 150)
+    _draw_centered(screen, "Enter your name:", fonts.option_font, TEXT_PRIMARY, 250)
+
+    # Draw the input box area
+    input_rect = pygame.Rect(0, 0, 600, 60)
+    input_rect.center = (config.WIDTH // 2, 350)
+
+    # Draw a border that glows slightly
+    pygame.draw.rect(screen, ACCENT_GREEN, input_rect, 2, border_radius=10)
+
+    # Render the name typed so far
+    # We add a "|" character at the end to act as a typing cursor
+    name_surf = fonts.option_font.render(f"{current_name}|", True, (255, 255, 255))
+    screen.blit(name_surf, (input_rect.x + 20, input_rect.y + 10))
+
+    _draw_centered(
+        screen,
+        "ENTER: Confirm | ESC: Cancel",
+        fonts.hint_font,
+        DIM_TEXT,
+        config.HEIGHT - 100,
+    )

@@ -294,6 +294,16 @@ class App:
                 self.menu_index = (self.menu_index + 1) % 5
             elif event.key == pygame.K_RETURN:
                 self.rebinding_index = self.menu_index
+            elif event.key == pygame.K_r:
+                # Revert to the default keys defined in the Profile dataclass
+                self.current_profile.keys = [
+                    pygame.K_y,
+                    pygame.K_u,
+                    pygame.K_i,
+                    pygame.K_o,
+                    pygame.K_p,
+                ]
+                self.show_message("Keys Reset to Default", 1.0, "settings")
             elif event.key == pygame.K_ESCAPE:
                 self.data.save_profile(self.current_profile)
                 self.state, self.menu_index = "main_menu", 1

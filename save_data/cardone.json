@@ -1,0 +1,18 @@
+{
+    "name": "Cardone",
+    "keys": [
+        97,
+        115,
+        100,
+        102,
+        103
+    ],
+    "stats": {
+        "song_data": {
+            "jesucristo-demo_chart_01.txt": {
+                "best_hits": 35,
+                "best_percent": 100.0
+            }
+        }
+    }
+}

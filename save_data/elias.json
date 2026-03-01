@@ -16,6 +16,10 @@
             "jesucristo-demo_chart_03.txt": {
                 "best_hits": 26,
                 "best_percent": 81.25
+            },
+            "decidi_chart_03.txt": {
+                "best_hits": 443,
+                "best_percent": 97.58
             }
         }
     }

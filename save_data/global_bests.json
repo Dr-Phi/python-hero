@@ -5,8 +5,13 @@
         "accuracy": 78.79
     },
     "jesucristo-demo_chart_01.txt": {
-        "player": "guest",
-        "hits": 31,
-        "accuracy": 91.18
+        "player": "Cardone",
+        "hits": 35,
+        "accuracy": 100.0
+    },
+    "decidi_chart_03.txt": {
+        "player": "Elias",
+        "hits": 443,
+        "accuracy": 97.58
     }
 }
